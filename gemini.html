@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Analysis: OpenShift Ingress Architecture</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cool Slate & Teal -->
+    <!-- Application Structure Plan: The application is structured as a narrative journey to guide a technical audience from understanding the problem to evaluating solutions. 
+        1. 'The Challenge': Clearly defines the problem (503s, CPU load) and visualizes the current, complex traffic flow. This establishes a baseline for comparison.
+        2. 'Architecture Modernization Options': The core interactive section. Instead of a dry list, it uses a tab-based interface allowing users to actively switch between proposed architectures. This direct manipulation is more engaging and makes comparison intuitive. Clicking a tab dynamically updates the architecture diagram and the associated pros/cons, immediately showing the impact of each choice.
+        3. 'Comparative Analysis': A quantitative and qualitative summary. It features an interactive bar chart to visually weigh options against critical metrics (Performance, Security, Complexity). This provides an at-a-glance decision-making tool.
+        4. 'Strategic Recommendation': The conclusion, presenting the most viable long-term solution.
+        This flow was chosen to transform a static report into a dynamic decision-support tool, facilitating understanding and comparison rather than just presenting information linearly. -->
+    <!-- Visualization & Content Choices: 
+        1. Report Info: Current Traffic Flow -> Goal: Inform -> Viz/Method: HTML/CSS Diagram -> Interaction: Hover tooltips for component details -> Justification: Provides a clear, non-interactive baseline of the complex current state. HTML/CSS is lightweight and sufficient.
+        2. Report Info: Proposed Architecture Changes -> Goal: Compare/Explore -> Viz/Method: Dynamic HTML/CSS Diagram + Pros/Cons Lists -> Interaction: Tab selection updates diagram and text -> Justification: Allows direct, side-by-side mental comparison of architectural trade-offs, which is central to the report's purpose.
+        3. Report Info: Comparing options on metrics like performance, security, complexity -> Goal: Analyze/Compare -> Viz/Method: Chart.js Horizontal Bar Chart -> Interaction: Buttons to filter view (Individual vs. All) -> Justification: A bar chart is excellent for comparing ranked or scored items. Interactivity allows focusing on one option or seeing the full landscape, catering to different analysis needs.
+        4. Report Info: Pros and Cons of each option -> Goal: Inform -> Viz/Method: Styled HTML lists -> Interaction: Dynamically displayed with selected architecture -> Justification: Clear, scannable, and easily digestible format for detailed trade-offs.
+        Library/Method: Chart.js for charts, Vanilla JS for all interactions. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 450px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .tab.active {
+            border-color: #0d9488;
+            background-color: #ccfbf1;
+            color: #134e4a;
+        }
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .flow-component {
+            position: relative;
+            border: 2px solid #9ca3af;
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            text-align: center;
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        .flow-component-sm {
+            padding: 0.5rem 1rem;
+        }
+        .flow-component .tooltip {
+            visibility: hidden;
+            width: 220px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .flow-component:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+        }
+        .tls-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: #f59e0b;
+            color: white;
+            border-radius: 9999px;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold tracking-tight text-teal-800 sm:text-5xl">Interactive Analysis: OpenShift Ingress Architecture</h1>
+            <p class="mt-4 text-lg text-gray-600">Evaluating options to resolve 503 errors and optimize ingress traffic flow.</p>
+        </header>
+
+        <main>
+            <!-- Section 1: The Challenge -->
+            <section id="challenge" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">1. The Current Challenge</h2>
+                <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">
+                    Our current architecture for routing traffic from external clients to applications within our multi-tenant OpenShift cluster is experiencing performance bottlenecks. This section outlines the existing traffic flow and highlights the key issues we need to address: intermittent 503 Service Unavailable errors and high CPU consumption on the ingress layer.
+                </p>
+
+                <div class="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+                    <h3 class="text-xl font-semibold text-center mb-6 text-gray-800">Current Traffic Flow (mTLS Passthrough)</h3>
+                    <div id="diagram-current" class="flow-diagram p-4 bg-gray-50 rounded-md">
+                        <div class="flow-component">Client <div class="tooltip">External application on a VM</div></div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-component">AVI LB <div class="tooltip">L4 Load Balancer (mTLS Passthrough)</div></div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-component">HAProxy <div class="tooltip">OpenShift Ingress Router (mTLS Passthrough)</div></div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-component">
+                            OSSM Ingress
+                            <div class="tls-badge">mTLS</div>
+                            <div class="tooltip">OpenShift Service Mesh Gateway terminates mTLS here</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-component">App Pods <div class="tooltip">Target application containers</div></div>
+                    </div>
+                    <div class="mt-6 grid md:grid-cols-2 gap-4 text-center">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h4 class="font-bold text-red-800">Problem: 503 Errors</h4>
+                            <p class="text-red-700 text-sm">Clients experience intermittent 503s, likely due to the Service Mesh Ingress Gateway being overloaded or unable to scale effectively under load.</p>
+                        </div>
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h4 class="font-bold text-yellow-800">Problem: High CPU</h4>
+                            <p class="text-yellow-700 text-sm">Terminating mTLS at the Service Mesh Gateway is computationally expensive, leading to high CPU usage on those nodes and contributing to instability.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Architecture Options -->
+            <section id="options" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">2. Architecture Modernization Options</h2>
+                 <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">
+                    To address the identified issues, we have several architectural options. Each option involves shifting responsibilities within the ingress path to optimize performance and reliability. Use the tabs below to explore each proposed architecture, see how the traffic flow changes, and understand the specific pros and cons.
+                </p>
+
+                <div class="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+                    <div class="flex flex-wrap justify-center border-b border-gray-200 mb-6 -mt-2">
+                        <button class="tab py-3 px-5 font-semibold text-gray-600 border-b-4 border-transparent hover:bg-gray-100" data-option="option1">Option 1: Terminate mTLS at HAProxy</button>
+                        <button class="tab py-3 px-5 font-semibold text-gray-600 border-b-4 border-transparent hover:bg-gray-100" data-option="option2">Option 2: Remove HAProxy</button>
+                        <button class="tab py-3 px-5 font-semibold text-gray-600 border-b-4 border-transparent hover:bg-gray-100" data-option="option3">Option 3: Strategic (Gloo Mesh)</button>
+                    </div>
+
+                    <div id="option-content">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Comparative Analysis -->
+            <section id="analysis" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">3. Comparative Analysis</h2>
+                <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">
+                    This section provides a visual comparison of the proposed options against the current state. The chart below scores each architecture on key criteria like performance, security, and complexity. Use the buttons to view an individual option's profile or compare all options side-by-side to inform your decision.
+                </p>
+                <div class="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+                    <div class="chart-container">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
+                    <div id="chart-controls" class="text-center mt-4 space-x-2">
+                         <button data-view="current" class="chart-btn bg-gray-200 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-300">Current State</button>
+                         <button data-view="option1" class="chart-btn bg-gray-200 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-300">Option 1</button>
+                         <button data-view="option2" class="chart-btn bg-gray-200 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-300">Option 2</button>
+                         <button data-view="option3" class="chart-btn bg-gray-200 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-300">Option 3</button>
+                         <button data-view="all" class="chart-btn bg-teal-600 text-white py-2 px-4 rounded-md font-semibold hover:bg-teal-700">Compare All</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 4: Recommendation -->
+            <section id="recommendation">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">4. Strategic Recommendation</h2>
+                <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">
+                    After analyzing the options, a clear path forward emerges that balances short-term fixes with long-term strategy. This section summarizes our recommendation for achieving a robust, scalable, and future-proof ingress architecture.
+                </p>
+                <div class="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                   <h3 class="text-2xl font-semibold text-teal-800 mb-4">Adopt Option 3: Migrate to Gloo Mesh</h3>
+                   <p class="text-gray-700 mb-4">
+                       While Options 1 and 2 offer potential improvements, they are tactical adjustments to a architecture that has inherent limitations. Option 1 introduces complexity at HAProxy, and Option 2 may not solve the root performance problem if the Service Mesh itself is the bottleneck.
+                   </p>
+                   <p class="text-gray-700 mb-4">
+                       The most robust and forward-looking solution is to pursue **Option 3: Replace OpenShift Service Mesh with Gloo Mesh**. Gloo Mesh is a more advanced, performant service mesh designed for complex, multi-tenant environments.
+                   </p>
+                   <div class="mt-6 border-t pt-6">
+                        <h4 class="font-semibold text-lg text-gray-800">Key Benefits of this Strategy:</h4>
+                        <ul class="list-disc list-inside mt-2 space-y-2 text-gray-600">
+                            <li><strong>Superior Performance:</strong> Gloo Mesh is built on a modern architecture that can handle mTLS termination and complex routing policies more efficiently, directly addressing the CPU and 503 error issues.</li>
+                            <li><strong>Simplified Architecture:</strong> It can potentially consolidate the roles of HAProxy and the service mesh ingress into a single, powerful gateway, simplifying the traffic path as envisioned in Option 2 but with a more capable technology.</li>
+                            <li><strong>Alignment with Strategic Goals:</strong> This move aligns with the organization's stated strategy and provides a platform that is better equipped for future needs, including advanced traffic management and security policies.</li>
+                            <li><strong>Maintains L4 at Edge:</strong> A Gloo Mesh gateway inside OpenShift is fully compatible with keeping the external AVI load balancer operating purely at Layer 4.</li>
+                        </ul>
+                   </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+<script>
+const optionData = {
+    option1: {
+        title: 'Option 1: Terminate mTLS at HAProxy',
+        diagram: `
+            <div class="flow-component">Client</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">AVI LB</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">
+                HAProxy
+                <div class="tls-badge">mTLS</div>
+                <div class="tooltip">HAProxy now terminates mTLS and handles L7 routing</div>
+            </div>
+            <div class="flow-arrow text-gray-400" title="Unencrypted traffic">→</div>
+            <div class="flow-component border-dashed border-gray-400">OSSM Ingress</div>
+            <div class="flow-arrow text-gray-400">→</div>
+            <div class="flow-component border-dashed border-gray-400">App Pods</div>
+        `,
+        pros: [
+            'Offloads expensive mTLS termination from Service Mesh.',
+            'Potentially reduces CPU load on mesh ingress nodes.',
+            'Could decrease 503 errors if they are caused by mesh overload.',
+        ],
+        cons: [
+            'Increases complexity and management of HAProxy (certs, keys).',
+            'HAProxy now operates at L7, which might conflict with some policies.',
+            'Traffic from HAProxy to pods would be unencrypted unless re-encrypted.',
+            'Does not align with long-term strategy of replacing OSSM.',
+        ],
+        scores: [3, 3, 4, 2] 
+    },
+    option2: {
+        title: 'Option 2: Remove HAProxy',
+        diagram: `
+            <div class="flow-component">Client</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">AVI LB</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">
+                OSSM Ingress
+                <div class="tls-badge">mTLS</div>
+                 <div class="tooltip">OSSM Ingress is exposed directly to handle L7 routing and mTLS</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">App Pods</div>
+        `,
+        pros: [
+            'Simplifies the architecture by removing a network hop.',
+            'Reduces potential points of failure and latency.',
+            'Centralizes ingress logic within the service mesh.',
+        ],
+        cons: [
+            'Puts even more load on the already struggling OSSM Ingress.',
+            'Likely worsens 503 and CPU issues without a more performant mesh.',
+            'Exposing service mesh ingress directly can be complex for multi-tenancy.',
+            'High risk of failure without replacing the underlying mesh technology.'
+        ],
+        scores: [1, 2, 2, 2]
+    },
+    option3: {
+        title: 'Option 3: Strategic (Replace OSSM with Gloo Mesh)',
+        diagram: `
+            <div class="flow-component">Client</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component">AVI LB</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-component bg-teal-50 border-teal-500">
+                Gloo Mesh Gateway
+                <div class="tls-badge !bg-teal-600">mTLS</div>
+                <div class="tooltip">Future State: Gloo Mesh handles routing and mTLS efficiently</div>
+            </div>
+            <div class="flow-arrow text-teal-600">→</div>
+            <div class="flow-component bg-teal-50 border-teal-500">App Pods</div>
+        `,
+        pros: [
+            'Directly addresses root cause of performance issues.',
+            'Aligns with long-term strategic direction.',
+            'More performant and feature-rich than OSSM.',
+            'Simplifies architecture while increasing capability.',
+        ],
+        cons: [
+            'Major migration project, not a quick fix.',
+            'Requires new skills and learning for the team.',
+            'Higher initial implementation effort and cost.',
+            'Potential for unforeseen migration challenges.'
+        ],
+        scores: [5, 5, 5, 5]
+    }
+};
+
+const chartDataStore = {
+    labels: ['Performance/Reliability', 'Security', 'Simplicity/Operability', 'Future-Proof'],
+    datasets: [
+        {
+            label: 'Current State',
+            data: [2, 4, 3, 2],
+            backgroundColor: 'rgba(107, 114, 128, 0.6)',
+            borderColor: 'rgb(107, 114, 128)',
+            borderWidth: 1
+        },
+        {
+            label: 'Option 1: mTLS at HAProxy',
+            data: optionData.option1.scores,
+            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+        },
+        {
+            label: 'Option 2: Remove HAProxy',
+            data: optionData.option2.scores,
+            backgroundColor: 'rgba(239, 68, 68, 0.6)',
+            borderColor: 'rgb(239, 68, 68)',
+            borderWidth: 1
+        },
+        {
+            label: 'Option 3: Gloo Mesh',
+            data: optionData.option3.scores,
+            backgroundColor: 'rgba(13, 148, 136, 0.6)',
+            borderColor: 'rgb(13, 148, 136)',
+            borderWidth: 1
+        }
+    ]
+};
+
+const optionContentEl = document.getElementById('option-content');
+const tabs = document.querySelectorAll('.tab');
+let comparisonChart;
+
+function renderOption(optionId) {
+    const data = optionData[optionId];
+    if (!data) return;
+
+    const prosHtml = data.pros.map(pro => `<li class="flex items-start"><span class="text-green-500 mr-2 mt-1">✔</span><span>${pro}</span></li>`).join('');
+    const consHtml = data.cons.map(con => `<li class="flex items-start"><span class="text-red-500 mr-2 mt-1">✖</span><span>${con}</span></li>`).join('');
+
+    optionContentEl.innerHTML = `
+        <h3 class="text-xl font-semibold text-center mb-6 text-gray-800">${data.title}</h3>
+        <div class="flow-diagram p-4 bg-gray-50 rounded-md mb-6">${data.diagram}</div>
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h4 class="font-bold text-lg text-green-800 mb-2">Pros</h4>
+                <ul class="space-y-2 text-green-700">${prosHtml}</ul>
+            </div>
+            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                <h4 class="font-bold text-lg text-red-800 mb-2">Cons</h4>
+                <ul class="space-y-2 text-red-700">${consHtml}</ul>
+            </div>
+        </div>
+    `;
+}
+
+function updateChart(view) {
+    if (!comparisonChart) return;
+    
+    if (view === 'all') {
+        comparisonChart.data.datasets = chartDataStore.datasets;
+    } else {
+        const viewMap = {
+            'current': 0,
+            'option1': 1,
+            'option2': 2,
+            'option3': 3,
+        };
+        const datasetIndex = viewMap[view];
+        comparisonChart.data.datasets = [chartDataStore.datasets[datasetIndex]];
+    }
+    comparisonChart.update();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    comparisonChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: chartDataStore.labels, datasets: [] },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 5,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    title: {
+                        display: true,
+                        text: 'Score (1=Low, 5=High)'
+                    }
+                },
+                y: {
+                   ticks: {
+                     autoSkip: false,
+                     callback: function(value) {
+                       const label = this.getLabelForValue(value);
+                       if (label.length > 16) {
+                         return label.match(/.{1,16}/g);
+                       }
+                       return label;
+                     }
+                   }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.x !== null) {
+                                label += context.parsed.x;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const optionId = tab.dataset.option;
+            renderOption(optionId);
+        });
+    });
+    
+    document.querySelectorAll('.chart-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+             updateChart(btn.dataset.view);
+        });
+    });
+
+    document.querySelector('.tab[data-option="option1"]').click();
+    document.querySelector('.chart-btn[data-view="all"]').click();
+});
+</script>
+</body>
+</html>
+
